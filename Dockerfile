@@ -7,7 +7,7 @@
 FROM nvidia/cuda:12.1.0-devel-ubuntu22.04 AS ffmpeg-builder
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG FFMPEG_VERSION=6.1.1
+ARG FFMPEG_VERSION=7.1
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
