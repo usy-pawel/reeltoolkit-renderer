@@ -19,6 +19,7 @@ RUN apt-get update \
         git \
         curl \
         ca-certificates \
+        libnuma-dev \
         libass-dev \
         libfdk-aac-dev \
         libmp3lame-dev \
@@ -36,10 +37,9 @@ RUN git clone --depth=1 https://github.com/FFmpeg/nv-codec-headers.git /tmp/nv-c
 # Build FFmpeg with NVENC/NPP enabled
 RUN curl -sSL https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.bz2 | tar -xj -C /tmp \
     && cd /tmp/ffmpeg-${FFMPEG_VERSION} \
-    && export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH} \
-    && ./configure \
+    && PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH}" \
+    ./configure \
         --prefix=/usr/local \
-        --pkg-config-flags="--static" \
         --extra-cflags="-I/usr/local/cuda/include" \
         --extra-ldflags="-L/usr/local/cuda/lib64" \
         --extra-libs="-lpthread -lm" \
