@@ -93,4 +93,6 @@ def handler(job: Dict[str, Any]) -> Dict[str, Any]:
     """Sync wrapper matching RunPod docs pattern. Always uses asyncio.run."""
     return asyncio.run(handler_async(job))
 
-runpod.serverless.start({"handler": handler})
+
+if __name__ == "__main__":
+    runpod.serverless.start({"handler": handler})
