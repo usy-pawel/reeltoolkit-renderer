@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 import runpod
+import asyncio
 
 from reel_renderer import RenderJobSpec, render_reel
 
@@ -45,7 +46,7 @@ def _load_spec(payload: Dict[str, Any]) -> RenderJobSpec:
     return RenderJobSpec.model_validate(spec_raw)
 
 
-async def handler(event: Dict[str, Any]) -> Dict[str, Any]:  # RunPod supports async handlers
+async def handler_async(event: Dict[str, Any]) -> Dict[str, Any]:  # RunPod supports async handlers
     """Primary serverless entrypoint.
 
     Accepts either a root-level payload or an object under key `input` (RunPod convention).
@@ -75,5 +76,20 @@ async def handler(event: Dict[str, Any]) -> Dict[str, Any]:  # RunPod supports a
             "video_b64": base64.b64encode(data).decode("utf-8"),
         }
 
+
+def handler(event: Dict[str, Any]) -> Dict[str, Any]:
+    """Sync facade so RunPod's simple sync pattern still works.
+
+    If the runtime already supports awaiting the async handler directly,
+    you can instead pass handler_async to start(). Keeping this for
+    maximum compatibility with basic detection heuristics.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if loop and loop.is_running():
+        return asyncio.ensure_future(handler_async(event))  # type: ignore[return-value]
+    return asyncio.run(handler_async(event))
 
 runpod.serverless.start({"handler": handler})
