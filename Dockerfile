@@ -38,7 +38,7 @@ WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY reel_renderer ./reel_renderer
 COPY renderer_service ./renderer_service
-COPY handler.py ./
+COPY rp_handler.py ./
 
 # Install wheel/package dependencies
 RUN python3 -m pip install --upgrade build setuptools wheel \
@@ -56,5 +56,5 @@ ENV RENDER_TEMP_ROOT=/var/reeltoolkit/work \
 
 EXPOSE 8080
 
-# Default CMD for RunPod serverless (use uvicorn for HTTP service)
-CMD ["python3", "handler.py"]
+# Default CMD for RunPod serverless (rp_handler.py auto-discovered by RunPod)
+CMD ["python3", "rp_handler.py"]

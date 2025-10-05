@@ -63,12 +63,12 @@ async def handler_async(job: Dict[str, Any]) -> Dict[str, Any]:
     logger.info(f"Handler received job: {job.get('id', 'unknown')}")
     job_input = job.get("input") or {}  # RunPod can send None
 
-    # Lightweight health-check so RunPod "Testing" doesn't hang
-    if job_input.get("ping"):
-        logger.info("Ping request received, responding with pong")
-        return {"ok": True, "pong": True}
+    # Healthcheck for RunPod "Testing" (empty input or ping should pass)
+    if not job_input or job_input.get("ping"):
+        logger.info("Health check - responding with ready status")
+        return {"ok": True, "ready": True}
 
-    # Auth check
+    # Auth check (optional - only if RENDER_AUTH_TOKEN is set)
     expected_token = os.getenv("RENDER_AUTH_TOKEN")
     provided_token = job_input.get("auth_token")
     if expected_token and provided_token != expected_token:
