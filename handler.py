@@ -45,35 +45,29 @@ def _load_spec(payload: Dict[str, Any]) -> RenderJobSpec:
     return RenderJobSpec.model_validate(spec_raw)
 
 
-def handler(event: Dict[str, Any]) -> Dict[str, Any]:  # type: ignore[override]
+async def handler(event: Dict[str, Any]) -> Dict[str, Any]:  # RunPod supports async handlers
+    """Primary serverless entrypoint.
+
+    Accepts either a root-level payload or an object under key `input` (RunPod convention).
+    """
     payload = event.get("input") or event
 
     spec = _load_spec(payload)
     bundle_b64 = payload.get("bundle_b64")
     if not bundle_b64:
-        raise ValueError("'bundle_b64' required (zip with assets)")
+        raise ValueError("'bundle_b64' required (base64 zip with assets)")
 
-    auth_override = payload.get("auth_token")
     expected_token = os.getenv("RENDER_AUTH_TOKEN")
-    if expected_token and auth_override and auth_override != expected_token:
-        raise PermissionError("invalid auth token override")
+    provided_token = payload.get("auth_token")
+    if expected_token and provided_token != expected_token:
+        raise PermissionError("invalid or missing auth token")
 
     with tempfile.TemporaryDirectory(prefix=f"srv_{spec.job_id}_") as td:
         temp_dir = Path(td)
         bundle_path = temp_dir / "bundle.zip"
         _write_base64_zip(bundle_b64, bundle_path)
         output_path = temp_dir / spec.output_name
-        final_path = runpod.serverless.utils.rp_run.sync_to_async(
-            render_reel
-        )  # type: ignore[attr-defined]
-        # Above helper not always present; fall back to direct await if needed
-        # but render_reel is async so we simply await it below.
-        # Actually we just call it directly as it's already async.
-        # Keeping placeholder for potential future synch calls.
-        import asyncio
-        final_file = asyncio.run(
-            render_reel(spec, bundle_path, output_path)
-        )
+        final_file = await render_reel(spec, bundle_path, output_path)
         data = final_file.read_bytes()
         return {
             "job_id": spec.job_id,
