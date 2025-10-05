@@ -118,7 +118,12 @@ The repository includes a `handler.py` compatible with RunPod Serverless. It exp
 }
 ```
 
-The response contains `video_b64` with the rendered MP4 (base64). For large outputs prefer the streaming HTTP service.
+The response contains `video_b64` with the rendered MP4 (base64) if the output is smaller than `MAX_INLINE_BYTES` (default 25MB). For larger outputs, the handler returns `inline: false` with an error message. In production, consider providing a `put_url` (presigned upload URL) in the input to upload large results to cloud storage instead of returning them inline.
+
+**Environment variables:**
+- `RENDER_AUTH_TOKEN` – optional bearer token for job authorization
+- `MAX_INLINE_BYTES` – max size (bytes) for inline base64 response (default: 26214400)
+- `RENDER_MAX_WORKERS` – FFmpeg parallel worker count (default: 16)
 
 ## Development roadmap
 

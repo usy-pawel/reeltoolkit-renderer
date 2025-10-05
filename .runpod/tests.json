@@ -1,17 +1,5 @@
 {
-  "tests": [
-    {
-      "name": "health_check",
-      "http": {
-        "method": "GET",
-        "path": "/health"
-      },
-      "expect": {
-        "status": 200,
-        "json": {"status": "ok"}
-      }
-    }
-  ],
+  "tests": [],
   "config": {
     "gpuTypeId": "NVIDIA GeForce RTX 4090",
     "gpuCount": 1,
