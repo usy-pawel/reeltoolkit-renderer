@@ -1,6 +1,7 @@
 # ReelToolkit Renderer
 
 [![CI](https://github.com/<your-org>/reeltoolkit-renderer/actions/workflows/ci.yml/badge.svg)](https://github.com/<your-org>/reeltoolkit-renderer/actions/workflows/ci.yml)
+[![Runpod](https://api.runpod.io/badge/usy-pawel/reeltoolkit-renderer)](https://console.runpod.io/hub/usy-pawel/reeltoolkit-renderer)
 
 Dedicated GPU-friendly rendering service that turns prepared slide bundles into final MP4 reels. The service exposes a small FastAPI endpoint, and it can also be invoked as a reusable Python library from the monolithic backend during local development.
 
@@ -93,6 +94,31 @@ tests/                # Lightweight contract & pipeline tests
   ```bash
   ffmpeg -hide_banner -encoders | grep nvenc
   ```
+
+### RunPod Serverless (handler)
+
+The repository includes a `handler.py` compatible with RunPod Serverless. It exposes a single function endpoint that accepts a JSON payload with a base64-encoded zip bundle and a render spec. After deploying to the Hub, you can invoke it like:
+
+```jsonc
+{
+  "input": {
+    "spec": {
+      "job_id": "demo-1",
+      "output_name": "render.mp4",
+      "dimensions": {"width": 720, "height": 1280, "fps": 30},
+      "background_color": "#000000",
+      "render": {"use_parallel": false, "quality": "draft"},
+      "slides": [
+        {"image": "slide1.png", "audio": "slide1.mp3"}
+      ]
+    },
+    "bundle_b64": "<base64 zip containing slide1.png & slide1.mp3>",
+    "auth_token": "<optional if RENDER_AUTH_TOKEN set>"
+  }
+}
+```
+
+The response contains `video_b64` with the rendered MP4 (base64). For large outputs prefer the streaming HTTP service.
 
 ## Development roadmap
 

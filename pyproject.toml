@@ -28,6 +28,7 @@ dependencies = [
     "imageio-ffmpeg>=0.4",
     "numpy>=1.24",
     "aiofiles>=23.0",
+    "runpod>=1.6.2",
 ]
 
 [project.optional-dependencies]
