@@ -6,7 +6,7 @@ import os
 import re
 from typing import Dict, List
 
-from moviepy.editor import AudioFileClip
+from moviepy import AudioFileClip
 
 
 def _ass_header(width: int, height: int) -> str:

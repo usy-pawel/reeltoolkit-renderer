@@ -8,7 +8,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from moviepy.editor import (
+from moviepy import (
     AudioFileClip,
     ColorClip,
     CompositeVideoClip,
