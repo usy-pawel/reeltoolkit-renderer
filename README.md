@@ -125,9 +125,29 @@ The response contains `video_b64` with the rendered MP4 (base64) if the output i
 - `MAX_INLINE_BYTES` – max size (bytes) for inline base64 response (default: 26214400)
 - `RENDER_MAX_WORKERS` – FFmpeg parallel worker count (default: 16)
 
+## Docker Image
+
+Docker images are automatically built and published to GitHub Container Registry on every release:
+
+```bash
+# Pull the latest image
+docker pull ghcr.io/usy-pawel/reeltoolkit-renderer:latest
+
+# Or specific version
+docker pull ghcr.io/usy-pawel/reeltoolkit-renderer:0.1.8
+
+# Run locally
+docker run --gpus all -p 8080:8080 \
+  -e RENDER_AUTH_TOKEN=your-token \
+  ghcr.io/usy-pawel/reeltoolkit-renderer:latest
+```
+
+See [RUNPOD_DEPLOYMENT.md](./RUNPOD_DEPLOYMENT.md) for detailed deployment instructions and troubleshooting.
+
 ## Development roadmap
 
 - [x] Container image with NVIDIA FFmpeg build
+- [x] Automated Docker builds on release
 - [ ] Metrics endpoint (Prometheus)
 - [ ] Health and readiness probes
 - [ ] Expanded test suite with golden MP4 fixtures
