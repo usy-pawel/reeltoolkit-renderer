@@ -1,69 +1,13 @@
 # syntax=docker/dockerfile:1.5
 
 ###############################################################################
-# Stage 1: Build FFmpeg with NVENC/NPP support
+# Use pre-built FFmpeg image with NVENC support - much simpler!
 ###############################################################################
 
-FROM nvidia/cuda:12.1.0-devel-ubuntu22.04 AS ffmpeg-builder
-
-ARG DEBIAN_FRONTEND=noninteractive
-ARG FFMPEG_VERSION=7.1
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        build-essential \
-        pkg-config \
-        yasm \
-        nasm \
-        cmake \
-        git \
-        curl \
-        ca-certificates \
-        libnuma-dev \
-        libass-dev \
-        libfdk-aac-dev \
-        libmp3lame-dev \
-        libopus-dev \
-        libvpx-dev \
-        libx264-dev \
-        libx265-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install NVIDIA codec headers (use n12.1.14.0 compatible with FFmpeg 7.x)
-RUN git clone --depth=1 --branch n12.1.14.0 https://github.com/FFmpeg/nv-codec-headers.git /tmp/nv-codec-headers \
-    && make -C /tmp/nv-codec-headers install \
-    && rm -rf /tmp/nv-codec-headers
-
-# Build FFmpeg with NVENC/NPP enabled
-RUN curl -sSL https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.bz2 | tar -xj -C /tmp \
-    && cd /tmp/ffmpeg-${FFMPEG_VERSION} \
-    && PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH}" \
-    ./configure \
-        --prefix=/usr/local \
-        --extra-cflags="-I/usr/local/cuda/include" \
-        --extra-ldflags="-L/usr/local/cuda/lib64" \
-        --extra-libs="-lpthread -lm" \
-        --ld="g++" \
-        --enable-gpl \
-        --enable-nonfree \
-        --enable-libnpp \
-        --enable-cuda-nvcc \
-        --enable-cuvid \
-        --enable-nvenc \
-        --enable-libass \
-        --enable-libfdk-aac \
-        --enable-libmp3lame \
-        --enable-libopus \
-        --enable-libvpx \
-        --enable-libx264 \
-        --enable-libx265 \
-    && make -j"$(nproc)" \
-    && make install \
-    && ldconfig \
-    && rm -rf /tmp/ffmpeg-${FFMPEG_VERSION}
+FROM jrottenberg/ffmpeg:7.1-nvidia2204 AS ffmpeg-source
 
 ###############################################################################
-# Stage 2: Runtime image with Python app + NVENC-enabled FFmpeg
+# Stage 2: Runtime image with Python app + pre-built FFmpeg
 ###############################################################################
 
 FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
@@ -81,18 +25,11 @@ RUN apt-get update \
         python3-venv \
         python3-pip \
         ca-certificates \
-        libass9 \
-        libfdk-aac2 \
-        libmp3lame0 \
-        libopus0 \
-        libvpx7 \
-        libx264-163 \
-        libx265-199 \
     && python3 -m pip install --upgrade pip \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy FFmpeg build artifacts
-COPY --from=ffmpeg-builder /usr/local /usr/local
+# Copy pre-built FFmpeg from the ffmpeg-source stage
+COPY --from=ffmpeg-source /usr/local /usr/local
 RUN ldconfig
 
 WORKDIR /app
