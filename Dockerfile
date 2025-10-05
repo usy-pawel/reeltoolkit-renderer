@@ -100,6 +100,7 @@ WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY reel_renderer ./reel_renderer
 COPY renderer_service ./renderer_service
+COPY handler.py ./
 
 # Install wheel/package dependencies
 RUN python3 -m pip install --upgrade build setuptools wheel \
@@ -117,4 +118,5 @@ ENV RENDER_TEMP_ROOT=/var/reeltoolkit/work \
 
 EXPOSE 8080
 
+# Default CMD for HTTP service (override with handler.py for serverless)
 CMD ["uvicorn", "renderer_service.app:app", "--host", "0.0.0.0", "--port", "8080"]

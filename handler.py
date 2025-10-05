@@ -46,20 +46,17 @@ def _load_spec(payload: Dict[str, Any]) -> RenderJobSpec:
     return RenderJobSpec.model_validate(spec_raw)
 
 
-async def handler_async(event: Dict[str, Any]) -> Dict[str, Any]:  # RunPod supports async handlers
-    """Primary serverless entrypoint.
+async def handler_async(job: Dict[str, Any]) -> Dict[str, Any]:
+    """Core async logic for rendering. Processes job["input"] per RunPod convention."""
+    job_input = job["input"]
 
-    Accepts either a root-level payload or an object under key `input` (RunPod convention).
-    """
-    payload = event.get("input") or event
-
-    spec = _load_spec(payload)
-    bundle_b64 = payload.get("bundle_b64")
+    spec = _load_spec(job_input)
+    bundle_b64 = job_input.get("bundle_b64")
     if not bundle_b64:
         raise ValueError("'bundle_b64' required (base64 zip with assets)")
 
     expected_token = os.getenv("RENDER_AUTH_TOKEN")
-    provided_token = payload.get("auth_token")
+    provided_token = job_input.get("auth_token")
     if expected_token and provided_token != expected_token:
         raise PermissionError("invalid or missing auth token")
 
@@ -77,19 +74,14 @@ async def handler_async(event: Dict[str, Any]) -> Dict[str, Any]:  # RunPod supp
         }
 
 
-def handler(event: Dict[str, Any]) -> Dict[str, Any]:
-    """Sync facade so RunPod's simple sync pattern still works.
-
-    If the runtime already supports awaiting the async handler directly,
-    you can instead pass handler_async to start(). Keeping this for
-    maximum compatibility with basic detection heuristics.
-    """
+def handler(job: Dict[str, Any]) -> Dict[str, Any]:
+    """Sync wrapper matching RunPod docs pattern: def handler(job)."""
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         loop = None
     if loop and loop.is_running():
-        return asyncio.ensure_future(handler_async(event))  # type: ignore[return-value]
-    return asyncio.run(handler_async(event))
+        return asyncio.ensure_future(handler_async(job))  # type: ignore[return-value]
+    return asyncio.run(handler_async(job))
 
 runpod.serverless.start({"handler": handler})
