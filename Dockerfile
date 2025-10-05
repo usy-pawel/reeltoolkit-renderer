@@ -45,7 +45,7 @@ RUN python3 -m pip install --upgrade build setuptools wheel \
     && python3 -m pip install .
 
 # Create non-root user and working directories
-RUN useradd --system --create-home --shell /usr/sbin/nologin renderer \
+RUN useradd --system --create-home --shell /bin/bash renderer \
     && mkdir -p /var/reeltoolkit/work \
     && chown -R renderer:renderer /var/reeltoolkit /app
 
