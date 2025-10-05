@@ -29,8 +29,8 @@ RUN apt-get update \
         libx265-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install NVIDIA codec headers
-RUN git clone --depth=1 https://github.com/FFmpeg/nv-codec-headers.git /tmp/nv-codec-headers \
+# Install NVIDIA codec headers (use n12.1.14.0 compatible with FFmpeg 7.x)
+RUN git clone --depth=1 --branch n12.1.14.0 https://github.com/FFmpeg/nv-codec-headers.git /tmp/nv-codec-headers \
     && make -C /tmp/nv-codec-headers install \
     && rm -rf /tmp/nv-codec-headers
 
