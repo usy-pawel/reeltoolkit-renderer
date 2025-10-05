@@ -42,6 +42,9 @@ dev = [
 [project.scripts]
 render-service = "renderer_service.run:main"
 
+[tool.setuptools.packages.find]
+include = ["reel_renderer*", "renderer_service*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
