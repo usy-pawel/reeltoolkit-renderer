@@ -1,0 +1,29 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build directories
+build/
+dist/
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+.env/
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Test outputs
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Temporary work directories
+outputs/
+workspace/

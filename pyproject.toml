@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reeltoolkit-renderer"
+version = "0.1.0"
+description = "GPU-ready MP4 rendering microservice for ReelToolkit"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    {name = "ReelToolkit Team"}
+]
+keywords = ["video", "ffmpeg", "moviepy", "renderer", "gpu"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: MIT License",
+    "Framework :: FastAPI",
+]
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.23",
+    "pydantic>=2.4",
+    "python-multipart>=0.0.7",
+    "moviepy>=1.0.3",
+    "imageio-ffmpeg>=0.4",
+    "numpy>=1.24",
+    "aiofiles>=23.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-asyncio>=0.23",
+    "httpx>=0.24",
+    "ruff>=0.1.9",
+]
+
+[project.scripts]
+render-service = "renderer_service.run:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 88

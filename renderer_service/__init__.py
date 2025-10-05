@@ -1,0 +1,1 @@
+"""FastAPI application wrapper for the reel renderer service."""
