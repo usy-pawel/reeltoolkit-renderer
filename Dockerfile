@@ -56,5 +56,5 @@ ENV RENDER_TEMP_ROOT=/var/reeltoolkit/work \
 
 EXPOSE 8080
 
-# Default CMD for HTTP service (override with handler.py for serverless)
-CMD ["uvicorn", "renderer_service.app:app", "--host", "0.0.0.0", "--port", "8080"]
+# Default CMD for RunPod serverless (use uvicorn for HTTP service)
+CMD ["python3", "handler.py"]
