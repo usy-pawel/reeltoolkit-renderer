@@ -63,6 +63,11 @@ async def handler_async(job: Dict[str, Any]) -> Dict[str, Any]:
     logger.info(f"Handler received job: {job.get('id', 'unknown')}")
     job_input = job.get("input") or {}  # RunPod can send None
 
+    # Lightweight health-check so RunPod "Testing" doesn't hang
+    if job_input.get("ping"):
+        logger.info("Ping request received, responding with pong")
+        return {"ok": True, "pong": True}
+
     # Auth check
     expected_token = os.getenv("RENDER_AUTH_TOKEN")
     provided_token = job_input.get("auth_token")
@@ -120,16 +125,11 @@ def handler(job: Dict[str, Any]) -> Dict[str, Any]:
     return asyncio.run(handler_async(job))
 
 
-if __name__ == "__main__":
-    logger.info("Starting RunPod serverless handler...")
-    logger.info(f"Python version: {sys.version}")
-    logger.info(f"Working directory: {os.getcwd()}")
-    logger.info(f"RENDER_TEMP_ROOT: {os.getenv('RENDER_TEMP_ROOT', 'not set')}")
-    
-    try:
-        logger.info("Calling runpod.serverless.start()...")
-        runpod.serverless.start({"handler": handler})
-        logger.info("runpod.serverless.start() returned (this shouldn't happen)")
-    except Exception as e:
-        logger.error(f"Failed to start RunPod worker: {e}", exc_info=True)
-        raise
+# CRITICAL: Start worker at module level, not under __main__
+# RunPod Serverless imports the module, doesn't run it as __main__
+logger.info("Initializing RunPod serverless worker at module level...")
+logger.info(f"Python version: {sys.version}")
+logger.info(f"Working directory: {os.getcwd()}")
+logger.info(f"RENDER_TEMP_ROOT: {os.getenv('RENDER_TEMP_ROOT', 'not set')}")
+
+runpod.serverless.start({"handler": handler})
