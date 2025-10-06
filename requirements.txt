@@ -1,3 +1,8 @@
 runpod==1.6.*
 pydantic==2.8.2
 typing_extensions>=4.9.0
+numpy
+Pillow
+imageio==2.34.0
+imageio-ffmpeg==0.4.9
+moviepy==1.0.3
