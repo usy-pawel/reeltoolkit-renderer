@@ -76,6 +76,12 @@ def handler(job):
     # Import types first (lightweight)
     from reel_renderer import RenderJobSpec
     
+    # Set all ffmpeg env vars to prevent network downloads
+    os.environ.setdefault("IMAGEIO_FFMPEG_EXE", "/usr/bin/ffmpeg")
+    os.environ.setdefault("MOVIEPY_USE_IMAGEIO_FFMPEG", "1")
+    os.environ.setdefault("FFMPEG_BINARY", "/usr/bin/ffmpeg")
+    os.environ.setdefault("XDG_CACHE_HOME", "/tmp/.cache")
+    
     # Import rendering INSIDE function - super lazy
     logger.info(f"About to import rendering module...")
     from reel_renderer.rendering import render_reel
@@ -111,16 +117,29 @@ def handler(job):
                 
                 output_path = tmpdir_path / spec.output_name
                 
-                # Render the video
-                logger.info(f"Starting render for {spec.job_id}")
-                result_path = await render_reel(spec, bundle_path, output_path)
-                logger.info(f"Render complete: {result_path}")
+                # Render the video with HARD TIMEOUT
+                logger.info(f"Starting render_reel for job {spec.job_id}")
+                logger.info(f"Bundle size: {len(bundle_data)} bytes, Output: {output_path}")
+                
+                try:
+                    result_path = await asyncio.wait_for(
+                        render_reel(spec, bundle_path, output_path),
+                        timeout=120  # Hard 120s timeout to prevent hanging
+                    )
+                    logger.info(f"render_reel finished successfully: {result_path}")
+                except asyncio.TimeoutError:
+                    logger.error(f"render_reel TIMED OUT after 120s for job {spec.job_id}")
+                    return {
+                        "job_id": spec.job_id,
+                        "inline": False,
+                        "error": "render timed out after 120s"
+                    }
                 
                 # Read result
                 video_data = result_path.read_bytes()
                 video_b64 = base64.b64encode(video_data).decode('ascii')
                 
-                logger.info(f"Returning video: {len(video_data)} bytes")
+                logger.info(f"Returning video: {len(video_data)} bytes for job {spec.job_id}")
                 return {
                     "inline": True,
                     "video_b64": video_b64,
