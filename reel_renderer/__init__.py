@@ -1,6 +1,7 @@
-"""Public API for the reel_renderer pipeline."""
+"""Public API for the reel_renderer pipeline - LAZY IMPORTS ONLY."""
 
-from .models import RenderJobSpec
-from .pipeline import render_reel
+# Only import lightweight types - NOT rendering modules
+from .types import RenderJobSpec
 
-__all__ = ["RenderJobSpec", "render_reel"]
+__all__ = ["RenderJobSpec"]
+
