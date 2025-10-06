@@ -29,8 +29,8 @@ async def render_reel(
     """
     Render a video reel based on specification.
     
-    Minimal MoviePy render: black background + optional image overlay.
-    No audio, no ImageMagick, single-threaded for stability.
+    Full bundle handling: extracts ZIP and overlays frame.png if exists.
+    Black background, 1 second, no audio, single-threaded.
     
     Args:
         spec: Render job specification
@@ -43,12 +43,12 @@ async def render_reel(
     bundle_path = Path(bundle_path)
     output_path = Path(output_path)
     
-    # 1) Extract bundle (even if empty - shouldn't hang)
-    tmp_assets = output_path.parent / "assets"
-    _extract_bundle(bundle_path, tmp_assets)
-    
-    # 2) LAZY IMPORT moviepy - ONLY HERE, not at module level
+    # 1) LAZY IMPORT moviepy - ONLY HERE, not at module level
     from moviepy.editor import ColorClip, ImageClip, CompositeVideoClip
+    
+    # 2) Extract bundle ZIP to assets directory
+    assets_dir = output_path.parent / "assets"
+    _extract_bundle(bundle_path, assets_dir)
     
     # 3) Black background 1 second (no audio)
     bg = ColorClip(
@@ -57,15 +57,19 @@ async def render_reel(
         duration=1.0
     ).set_fps(spec.fps)
     
-    # 4) Optional: add image overlay if frame.png exists in bundle
-    img_path = tmp_assets / "frame.png"
-    if img_path.exists():
-        img = ImageClip(str(img_path)).set_duration(1.0)
-        clip = CompositeVideoClip([bg, img.set_position("center")])
-    else:
-        clip = bg
+    # 4) Build layers: start with background
+    layers = [bg]
     
-    # 5) Write video - explicit params (no audio, single thread, fast)
+    # 5) Add image overlay if frame.png exists in bundle
+    img_path = assets_dir / "frame.png"
+    if img_path.exists():
+        img_clip = ImageClip(str(img_path)).set_duration(1.0).set_position("center")
+        layers.append(img_clip)
+    
+    # 6) Composite all layers
+    clip = CompositeVideoClip(layers)
+    
+    # 7) Write video - explicit params (no audio, single thread, fast)
     def _write():
         clip.write_videofile(
             str(output_path),
