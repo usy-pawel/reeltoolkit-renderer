@@ -3,10 +3,6 @@ import asyncio
 from pathlib import Path
 from typing import Union
 
-# Heavy imports - only loaded when actually rendering
-import numpy as np
-from moviepy.editor import ColorClip
-
 from .types import RenderJobSpec
 
 
@@ -33,6 +29,9 @@ async def render_reel(
     
     # Simple test render: 1-second blank clip
     def _render():
+        # LAZY IMPORT - only load moviepy when actually rendering
+        from moviepy.editor import ColorClip
+        
         clip = ColorClip(
             size=(spec.width, spec.height),
             color=(0, 0, 0),  # black

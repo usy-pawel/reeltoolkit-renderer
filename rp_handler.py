@@ -34,8 +34,13 @@ def handler(job):
     from pathlib import Path
     from typing import Dict, Any
     
+    # Import types first (lightweight)
     from reel_renderer import RenderJobSpec
+    
+    # Import rendering INSIDE function - super lazy
+    logger.info(f"About to import rendering module...")
     from reel_renderer.rendering import render_reel
+    logger.info(f"Rendering module imported successfully")
     
     logger.info(f"Processing job: {ji.get('spec', {}).get('job_id', 'unknown')}")
     
