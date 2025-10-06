@@ -1,126 +1,279 @@
-# ReelToolkit Renderer
+# ReelToolkit Renderer# ReelToolkit Renderer
 
-[![CI](https://github.com/<your-org>/reeltoolkit-renderer/actions/workflows/ci.yml/badge.svg)](https://github.com/<your-org>/reeltoolkit-renderer/actions/workflows/ci.yml)
-[![Runpod](https://api.runpod.io/badge/usy-pawel/reeltoolkit-renderer)](https://console.runpod.io/hub/usy-pawel/reeltoolkit-renderer)
 
-Dedicated GPU-friendly rendering service that turns prepared slide bundles into final MP4 reels. The service exposes a small FastAPI endpoint, and it can also be invoked as a reusable Python library from the monolithic backend during local development.
 
-## Features
+[![CI](https://github.com/<your-org>/reeltoolkit-renderer/actions/workflows/ci.yml/badge.svg)](https://github.com/<your-org>/reeltoolkit-renderer/actions/workflows/ci.yml)[![CI](https://github.com/<your-org>/reeltoolkit-renderer/actions/workflows/ci.yml/badge.svg)](https://github.com/<your-org>/reeltoolkit-renderer/actions/workflows/ci.yml)
 
-- 🚀 Parallel FFmpeg-based slide rendering with MoviePy fallback
-- 🔥 Subtitle burn-in (ASS/SRT) and optional tail concatenation
-- 🎚️ Global background music mixing with ducking & masked mute ranges
-- 📦 Zip bundle ingestion so upstream systems keep control of asset downloads
-- 🌐 FastAPI service ready for RunPod or any GPU-enabled host
 
-## Quick start
 
-```bash
-# Install dependencies
-uv venv .venv
-source .venv/bin/activate  # (use .venv\Scripts\activate on Windows)
-pip install -e .
+Serverless video rendering service powered by FFmpeg and MoviePy. Deploy to Modal.com for fast, scalable video generation with ~2s cold starts.Serverless video rendering service powered by FFmpeg and MoviePy. Deploy to Modal.com for fast, scalable video generation with ~2s cold starts.
 
-# Run the service
-render-service --host 0.0.0.0 --port 8080
-```
 
-Send a request:
 
-```bash
-curl -X POST http://localhost:8080/render/reel \
-  -H "Authorization: Bearer <TOKEN>" \
-  -F "payload=@payload.json" \
-  -F "bundle=@workspace.zip" \
-  -o output.mp4
-```
+## Features## Features
 
-## Repository setup
 
-```bash
-# from the workspace root
-cd reeltoolkit-renderer
-git init
-git remote add origin git@github.com:<your-org>/reeltoolkit-renderer.git
-git add .
-git commit -m "feat: initial GPU renderer"
-git push -u origin main
-```
 
-After pushing, enable Actions in the GitHub UI so the CI workflow can run on pull requests.
+- 🚀 **Serverless:** Deploy to Modal.com with instant scaling- 🚀 **Serverless:** Deploy to Modal.com with instant scaling
 
-Ship the package to other projects with:
+- ⚡ **Fast:** ~2s cold starts, no container warm-up- ⚡ **Fast:** ~2s cold starts, no container warm-up
 
-```bash
-pip install git+ssh://git@github.com/<your-org>/reeltoolkit-renderer.git
-```
+- 🎬 **FFmpeg-based:** Pure FFmpeg rendering for reliability- � **FFmpeg-based:** Pure FFmpeg rendering for reliability
 
-## Repository layout
+- 📦 **Zip bundles:** Upload assets as base64-encoded zips- 📦 **Zip bundles:** Upload assets as base64-encoded zips
 
-```
-reel_renderer/        # Reusable pipeline module (`render_reel`)
-renderer_service/     # FastAPI application & server bootstrap
-tests/                # Lightweight contract & pipeline tests
-```
+- 🌐 **Dual interface:** Python SDK or HTTP endpoint- 🌐 **Dual interface:** Python SDK or HTTP endpoint
 
-## Deployment
+- 💰 **Cost-effective:** Pay per second, ~$0.002/minute- 💰 **Cost-effective:** Pay per second, ~$0.002/minute
 
-1. Build the container image (`docker build -t your-org/reeltoolkit-renderer .`). The multistage Dockerfile now compiles FFmpeg `6.1.1` with `nv-codec-headers`, enabling NVENC/NPP support. You can override the version with `--build-arg FFMPEG_VERSION=6.1.1`.
+
+
+## Quick start - Modal Deployment## Quick start - Modal Deployment
+
+
+
+### 1. Install and authenticate### 1. Install and authenticate
+
+```bash```bash
+
+pip install modalpip install modal
+
+modal token new  # Opens browser for authenticationmodal token new  # Opens browser for authentication
+
+``````
+
+
+
+### 2. Deploy### 2. Deploy
+
+```bash```bash
+
+cd reeltoolkit-renderercd reeltoolkit-renderer
+
+modal deploy modal_app_simple.pymodal deploy modal_app_simple.py
+
+``````
+
+
+
+### 3. Test### 3. Test
+
+```bash```bash
+
+# CLI test# CLI test
+
+modal run modal_app_simple.pymodal run modal_app_simple.py
+
+
+
+# Or call from Python# Or call from Python
+
+import modalimport modal
+
+test_fn = modal.Function.lookup("reeltoolkit-renderer-simple", "test_ffmpeg")test_fn = modal.Function.lookup("reeltoolkit-renderer-simple", "test_ffmpeg")
+
+result = test_fn.remote()result = test_fn.remote()
+
+print(f"Video size: {result['size_bytes']} bytes")print(f"Video size: {result['size_bytes']} bytes")
+
+``````
+
+
+
+### 4. Use HTTP endpoint### 4. Use HTTP endpoint
+
+```bash```bash
+
+curl -X POST https://your-endpoint.modal.run/render \curl -X POST https://your-endpoint.modal.run/render \
+
+  -H "Content-Type: application/json" \  -H "Content-Type: application/json" \
+
+  -d '{"width": 1080, "height": 1920, "duration": 3, "color": "blue"}'  -d '{"width": 1080, "height": 1920, "duration": 3, "color": "blue"}'
+
+``````
+
+
+
+📖 **Full docs:** See [MODAL_QUICKSTART.md](MODAL_QUICKSTART.md) and [TODO_MODAL.md](TODO_MODAL.md)📖 **Full docs:** See [MODAL_QUICKSTART.md](MODAL_QUICKSTART.md) and [TODO_MODAL.md](TODO_MODAL.md)
+
+
+
+## Local Development## Local Development
+
+
+
+### Run FastAPI service locally### Run FastAPI service locally
+
+```bash```bash
+
+# Install dependencies# Install dependencies
+
+pip install -e .pip install -e .
+
+
+
+# Run the service# Run the service
+
+render-service --host 0.0.0.0 --port 8080render-service --host 0.0.0.0 --port 8080
+
+``````
+
+
+
+### Test with curl### Test with curl
+
+```bash```bash
+
+curl -X POST http://localhost:8080/render/reel \curl -X POST http://localhost:8080/render/reel \
+
+  -H "Authorization: Bearer <TOKEN>" \  -H "Authorization: Bearer <TOKEN>" \
+
+  -F "payload=@payload.json" \  -F "payload=@payload.json" \
+
+  -F "bundle=@workspace.zip" \  -F "bundle=@workspace.zip" \
+
+  -o output.mp4  -o output.mp4
+
+``````
+
+
+
+## Repository layout## Repository layout
+
+
+
+``````
+
+reel_renderer/        # Reusable pipeline module (render_reel)reel_renderer/        # Reusable pipeline module (render_reel)
+
+renderer_service/     # FastAPI application (local dev)renderer_service/     # FastAPI application (local dev)
+
+modal_app_simple.py   # Modal deployment (FFmpeg only) ✅modal_app_simple.py   # Modal deployment (FFmpeg only)
+
+modal_app.py          # Modal deployment (full pipeline, WIP)modal_app.py          # Modal deployment (full pipeline, WIP)
+
+tests/                # Teststests/                # Tests
+
+``````
+
+
+
+## Deployment Options## Deployment Options
+
+
+
+### 1. Modal.com (Recommended) ⭐1. Build the container image (`docker build -t your-org/reeltoolkit-renderer .`). The multistage Dockerfile now compiles FFmpeg `6.1.1` with `nv-codec-headers`, enabling NVENC/NPP support. You can override the version with `--build-arg FFMPEG_VERSION=6.1.1`.
+
 2. Provide the service with GPU access if you expect to use accelerated encoders.
-3. Configure environment variables:
-  - `RENDER_AUTH_TOKEN`: optional bearer token shared with the backend.
-  - `RENDER_MAX_WORKERS`: override default FFmpeg concurrency.
-  - `RENDER_TEMP_ROOT`: mount point for working directories (defaults to system temp).
-4. Expose `/render/reel` and stream responses back to the backend.
-5. **RunPod quick start**:
+
+**Pros:**3. Configure environment variables:
+
+- ✅ Instant deploy (~3 seconds)  - `RENDER_AUTH_TOKEN`: optional bearer token shared with the backend.
+
+- ✅ Fast cold starts (~2 seconds)  - `RENDER_MAX_WORKERS`: override default FFmpeg concurrency.
+
+- ✅ Pay per second  - `RENDER_TEMP_ROOT`: mount point for working directories (defaults to system temp).
+
+- ✅ Python-native API4. Expose `/render/reel` and stream responses back to the backend.
+
+- ✅ Auto-scaling5. **RunPod quick start**:
+
   - Create a new RunPod template using the CUDA Base image or your FFmpeg-enabled container.
-  - Mount persistent storage for `/var/reeltoolkit/work` if you want to inspect bundles.
-  - Set the environment variables above in the RunPod dashboard.
-  - Point a webhook or TCP load balancer at the pod’s public endpoint and record the base URL for `RENDER_SERVICE_URL`.
-  6. To run the container locally with GPU acceleration:
 
-  ```bash
+**Deploy:**  - Mount persistent storage for `/var/reeltoolkit/work` if you want to inspect bundles.
+
+```bash  - Set the environment variables above in the RunPod dashboard.
+
+pip install modal  - Point a webhook or TCP load balancer at the pod’s public endpoint and record the base URL for `RENDER_SERVICE_URL`.
+
+modal token new  6. To run the container locally with GPU acceleration:
+
+modal deploy modal_app_simple.py
+
+```  ```bash
+
   docker run \
-    --gpus all \
+
+📖 See [MODAL_QUICKSTART.md](MODAL_QUICKSTART.md) for details.    --gpus all \
+
     -p 8080:8080 \
-    -e RENDER_AUTH_TOKEN=super-secret-token \
+
+### 2. Self-hosted / Local    -e RENDER_AUTH_TOKEN=super-secret-token \
+
     -e RENDER_MAX_WORKERS=16 \
-    -v $(pwd)/work:/var/reeltoolkit/work \
-    your-org/reeltoolkit-renderer
-  ```
 
-  Verify NVENC is available inside the running container:
+Run the FastAPI service:    -v $(pwd)/work:/var/reeltoolkit/work \
 
-  ```bash
+```bash    your-org/reeltoolkit-renderer
+
+pip install -e .  ```
+
+render-service --host 0.0.0.0 --port 8080
+
+```  Verify NVENC is available inside the running container:
+
+
+
+### 3. Other platforms  ```bash
+
   ffmpeg -hide_banner -encoders | grep nvenc
-  ```
 
-### RunPod Serverless (handler)
+The FastAPI service (`renderer_service/`) can run on:  ```
 
-The repository includes a `handler.py` compatible with RunPod Serverless. It exposes a single function endpoint that accepts a JSON payload with a base64-encoded zip bundle and a render spec. After deploying to the Hub, you can invoke it like:
+- AWS Lambda (with Docker)
 
-```jsonc
+- Google Cloud Run### RunPod Serverless (handler)
+
+- Azure Container Instances
+
+- Any Kubernetes clusterThe repository includes a `handler.py` compatible with RunPod Serverless. It exposes a single function endpoint that accepts a JSON payload with a base64-encoded zip bundle and a render spec. After deploying to the Hub, you can invoke it like:
+
+
+
+## Development```jsonc
+
 {
-  "input": {
-    "spec": {
-      "job_id": "demo-1",
-      "output_name": "render.mp4",
+
+### Run tests  "input": {
+
+```bash    "spec": {
+
+pytest tests/      "job_id": "demo-1",
+
+```      "output_name": "render.mp4",
+
       "dimensions": {"width": 720, "height": 1280, "fps": 30},
-      "background_color": "#000000",
-      "render": {"use_parallel": false, "quality": "draft"},
-      "slides": [
-        {"image": "slide1.png", "audio": "slide1.mp3"}
+
+### Install for development      "background_color": "#000000",
+
+```bash      "render": {"use_parallel": false, "quality": "draft"},
+
+pip install -e .      "slides": [
+
+```        {"image": "slide1.png", "audio": "slide1.mp3"}
+
       ]
-    },
+
+## Documentation    },
+
     "bundle_b64": "<base64 zip containing slide1.png & slide1.mp3>",
-    "auth_token": "<optional if RENDER_AUTH_TOKEN set>"
-  }
-}
-```
 
-The response contains `video_b64` with the rendered MP4 (base64) if the output is smaller than `MAX_INLINE_BYTES` (default 25MB). For larger outputs, the handler returns `inline: false` with an error message. In production, consider providing a `put_url` (presigned upload URL) in the input to upload large results to cloud storage instead of returning them inline.
+- [MODAL_QUICKSTART.md](MODAL_QUICKSTART.md) - Quick start guide for Modal    "auth_token": "<optional if RENDER_AUTH_TOKEN set>"
 
-**Environment variables:**
+- [MODAL_DEPLOYMENT.md](MODAL_DEPLOYMENT.md) - Detailed Modal deployment docs  }
+
+- [TODO_MODAL.md](TODO_MODAL.md) - Current status and next steps}
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines```
+
+
+
+## LicenseThe response contains `video_b64` with the rendered MP4 (base64) if the output is smaller than `MAX_INLINE_BYTES` (default 25MB). For larger outputs, the handler returns `inline: false` with an error message. In production, consider providing a `put_url` (presigned upload URL) in the input to upload large results to cloud storage instead of returning them inline.
+
+
+
+MIT License – see parent repository.**Environment variables:**
+
 - `RENDER_AUTH_TOKEN` – optional bearer token for job authorization
 - `MAX_INLINE_BYTES` – max size (bytes) for inline base64 response (default: 26214400)
 - `RENDER_MAX_WORKERS` – FFmpeg parallel worker count (default: 16)

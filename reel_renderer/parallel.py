@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple
 
-from moviepy import AudioFileClip
+from moviepy.editor import AudioFileClip
 
 logger = logging.getLogger("reel_renderer.parallel")
 
