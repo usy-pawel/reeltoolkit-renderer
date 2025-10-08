@@ -76,10 +76,7 @@ async def render_reel(
         audio_files = _ensure_files(assets_dir, [slide.audio for slide in spec.slides])
         motions, transitions = _collect_motions(spec)
 
-        use_parallel = spec.render.use_parallel and transitions == 0
-        if transitions and spec.render.use_parallel:
-            # Fall back silently to MoviePy when transitions are needed
-            use_parallel = False
+        use_parallel = spec.render.use_parallel
 
         if use_parallel:
             if max_workers is not None:

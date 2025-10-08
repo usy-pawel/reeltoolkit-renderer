@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 import renderer_service.app as renderer_app
 from renderer_service.config import get_settings
+from reel_renderer.models import RenderJobSpec
 
 
 @pytest.fixture(autouse=True)
@@ -110,3 +111,20 @@ async def test_render_unauthorized(monkeypatch):
 
         assert response.status_code == 401
         assert response.json()["detail"] == "Missing bearer token"
+
+
+def test_render_options_gpu_preset_normalized():
+    payload = {
+        "job_id": "gpu-test",
+        "output_name": "out.mp4",
+        "dimensions": {"width": 1080, "height": 1920, "fps": 30},
+        "background_color": "#000000",
+        "render": {"use_parallel": False, "quality": "final", "gpu_preset": "l40s"},
+        "slides": [
+            {"image": "slide_0.png", "audio": "slide_0.mp3"},
+        ],
+    }
+
+    spec = RenderJobSpec.model_validate(payload)
+
+    assert spec.render.gpu_preset == "L40S"

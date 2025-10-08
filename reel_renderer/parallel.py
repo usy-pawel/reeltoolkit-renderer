@@ -215,6 +215,29 @@ def _hex_to_rgb(hex_color: str) -> Tuple[int, int, int]:
     return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
 
 
+def _parse_transition_spec(motion: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not isinstance(motion, dict):
+        return None
+
+    transition = motion.get("transition")
+    if not isinstance(transition, dict):
+        return None
+
+    transition_type = (transition.get("type") or "").strip().lower()
+    if transition_type not in {"fade", "crossfade", "dissolve"}:
+        return None
+
+    try:
+        duration = float(transition.get("duration", 0.0))
+    except (TypeError, ValueError):
+        return None
+
+    if duration <= 0.0:
+        return None
+
+    return {"type": transition_type, "duration": duration}
+
+
 async def _render_slide_ffmpeg(
     slide: SlideConfig,
     config: RenderConfig,
@@ -337,39 +360,176 @@ async def render_slides_parallel(
     return output_paths
 
 
+_TRANSITION_TYPE_MAP = {
+    "fade": "fade",
+    "crossfade": "fade",
+    "dissolve": "dissolve",
+}
+
+
 async def concat_videos_ffmpeg(
     video_paths: List[str],
     output_path: str,
     work_dir: str,
+    *,
+    transitions: Optional[List[Optional[Dict[str, Any]]]] = None,
+    durations: Optional[List[float]] = None,
+    config: Optional[RenderConfig] = None,
 ) -> bool:
     try:
         ffmpeg_bin = _get_ffmpeg_binary()
-        concat_list = os.path.join(work_dir, "concat_list.txt")
-        with open(concat_list, "w", encoding="utf-8") as file:
-            for path in video_paths:
-                safe_path = path.replace("\\", "/").replace("'", "'\\''")
-                file.write(f"file '{safe_path}'\n")
+        transitions = transitions or []
+        has_transition = any(transitions)
 
-        cmd = [
-            ffmpeg_bin,
-            "-y",
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            concat_list,
-            "-c",
-            "copy",
-            output_path,
-        ]
+        if not has_transition:
+            concat_list = os.path.join(work_dir, "concat_list.txt")
+            with open(concat_list, "w", encoding="utf-8") as file:
+                for path in video_paths:
+                    safe_path = path.replace("\\", "/").replace("'", "'\\''")
+                    file.write(f"file '{safe_path}'\n")
+
+            cmd = [
+                ffmpeg_bin,
+                "-y",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                concat_list,
+                "-c",
+                "copy",
+                output_path,
+            ]
+
+            return_code, stdout, stderr = await _run_subprocess(cmd)
+
+            if return_code != 0:
+                error_msg = stderr.decode(errors="ignore") if stderr else "Unknown FFmpeg error"
+                logger.error(
+                    "FFmpeg concat failed",
+                    extra={"return_code": return_code, "stderr": error_msg},
+                )
+                return False
+
+            return os.path.exists(output_path) and os.path.getsize(output_path) > 0
+
+        logger.info(
+            "Applying FFmpeg transitions",
+            extra={
+                "segments": len(video_paths),
+                "transitions": sum(1 for item in transitions if item),
+            },
+        )
+
+        if durations is None or len(durations) != len(video_paths):
+            logger.error(
+                "Durations required for transition concat",
+                extra={
+                    "durations_provided": durations is not None,
+                    "durations_len": len(durations) if durations else None,
+                    "segments": len(video_paths),
+                },
+            )
+            return False
+
+        cmd = [ffmpeg_bin, "-y"]
+        for path in video_paths:
+            cmd.extend(["-i", path])
+
+        filter_parts: List[str] = []
+        current_video_label = "[0:v]"
+        current_audio_label = "[0:a]"
+        current_duration = durations[0]
+
+        for idx in range(1, len(video_paths)):
+            boundary = transitions[idx - 1] if idx - 1 < len(transitions) else None
+            next_video_label = f"[{idx}:v]"
+            next_audio_label = f"[{idx}:a]"
+
+            if boundary:
+                transition_type = boundary.get("type", "fade")
+                mapped = _TRANSITION_TYPE_MAP.get(transition_type, "fade")
+                try:
+                    duration = float(boundary.get("duration", 0.0))
+                except (TypeError, ValueError):
+                    duration = 0.0
+
+                if duration <= 0.0:
+                    boundary = None
+                else:
+                    duration = min(duration, current_duration, durations[idx])
+                    offset = max(current_duration - duration, 0.0)
+                    video_out = f"[vxf{idx}]"
+                    audio_out = f"[axf{idx}]"
+                    filter_parts.append(
+                        f"{current_video_label}{next_video_label}"
+                        f" xfade=transition={mapped}:duration={duration:.6f}:offset={offset:.6f} {video_out}"
+                    )
+                    filter_parts.append(
+                        f"{current_audio_label}{next_audio_label}"
+                        f" acrossfade=d={duration:.6f} {audio_out}"
+                    )
+                    current_video_label = video_out
+                    current_audio_label = audio_out
+                    current_duration = current_duration + durations[idx] - duration
+                    continue
+
+            video_out = f"[vcc{idx}]"
+            audio_out = f"[acc{idx}]"
+            filter_parts.append(
+                f"{current_video_label}{next_video_label} concat=n=2:v=1:a=0 {video_out}"
+            )
+            filter_parts.append(
+                f"{current_audio_label}{next_audio_label} concat=n=2:v=0:a=1 {audio_out}"
+            )
+            current_video_label = video_out
+            current_audio_label = audio_out
+            current_duration = current_duration + durations[idx]
+
+        if not filter_parts:
+            logger.error("Transition concat requested but no filters were generated")
+            return False
+
+        filter_complex = ";".join(filter_parts)
+        cmd.extend(["-filter_complex", filter_complex, "-map", current_video_label, "-map", current_audio_label])
+
+        if config and config.quality == "draft":
+            preset = "ultrafast"
+            crf = "28"
+        else:
+            preset = config.preset if config else "veryfast"
+            crf = str(config.crf if config else 23)
+
+        audio_bitrate = config.audio_bitrate if config else "128k"
+        audio_sample_rate = str(config.audio_sample_rate if config else 48000)
+
+        cmd.extend(
+            [
+                "-c:v",
+                "libx264",
+                "-preset",
+                preset,
+                "-crf",
+                crf,
+                "-c:a",
+                "aac",
+                "-b:a",
+                audio_bitrate,
+                "-ar",
+                audio_sample_rate,
+                "-movflags",
+                "+faststart",
+                output_path,
+            ]
+        )
 
         return_code, stdout, stderr = await _run_subprocess(cmd)
 
         if return_code != 0:
             error_msg = stderr.decode(errors="ignore") if stderr else "Unknown FFmpeg error"
             logger.error(
-                "FFmpeg concat failed",
+                "FFmpeg transition concat failed",
                 extra={"return_code": return_code, "stderr": error_msg},
             )
             return False
@@ -398,6 +558,7 @@ async def render_video_parallel(
                 durations.append(clip.duration)
 
         slides: List[SlideConfig] = []
+        transition_specs: List[Optional[Dict[str, Any]]] = []
         for idx, (img, audio, duration) in enumerate(zip(images, audio_files, durations)):
             motion = motions[idx] if motions and idx < len(motions) else None
             slides.append(
@@ -409,6 +570,7 @@ async def render_video_parallel(
                     index=idx,
                 )
             )
+            transition_specs.append(_parse_transition_spec(motion))
 
         logger.info(
             "Rendering slides in parallel",
@@ -416,11 +578,41 @@ async def render_video_parallel(
         )
         slide_videos = await render_slides_parallel(slides, config, work_dir, max_workers)
 
+        boundary_transitions: List[Optional[Dict[str, Any]]] = []
+        for idx in range(len(slides) - 1):
+            chosen = transition_specs[idx]
+            if not chosen:
+                chosen = transition_specs[idx + 1] if idx + 1 < len(transition_specs) else None
+
+            if chosen:
+                duration = min(
+                    float(chosen.get("duration", 0.0)),
+                    durations[idx],
+                    durations[idx + 1],
+                )
+                if duration > 0.0:
+                    boundary_transitions.append(
+                        {
+                            "type": chosen.get("type", "fade"),
+                            "duration": duration,
+                        }
+                    )
+                    continue
+
+            boundary_transitions.append(None)
+
         logger.info(
             "Concatenating slide segments",
             extra={"count": len(slide_videos)},
         )
-        success = await concat_videos_ffmpeg(slide_videos, output_path, work_dir)
+        success = await concat_videos_ffmpeg(
+            slide_videos,
+            output_path,
+            work_dir,
+            transitions=boundary_transitions,
+            durations=durations,
+            config=config,
+        )
 
         return success
 

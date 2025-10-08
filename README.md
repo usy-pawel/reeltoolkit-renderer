@@ -96,6 +96,36 @@ curl -X POST https://your-endpoint.modal.run/render \curl -X POST https://your-e
 
 📖 **Full docs:** See [MODAL_QUICKSTART.md](MODAL_QUICKSTART.md) and [TODO_MODAL.md](TODO_MODAL.md)📖 **Full docs:** See [MODAL_QUICKSTART.md](MODAL_QUICKSTART.md) and [TODO_MODAL.md](TODO_MODAL.md)
 
+## GPU selection and render resolution
+
+- **Per-request preset** – include `render.gpu_preset` in the job payload. Supported values: `T40`, `L40`, `L40S` (case-insensitive). Example:
+
+  ```json
+  {
+    "spec": {
+      "job_id": "vip-render",
+      "dimensions": {"width": 1080, "height": 1920, "fps": 30},
+      "render": {
+        "quality": "final",
+        "gpu_preset": "L40S"
+      },
+      "slides": []
+    },
+    "bundle_b64": "..."
+  }
+  ```
+
+- **Deployment default** – set the `MODAL_RENDER_GPU` variable before `modal deploy` to choose the fallback preset (for requests that omit `render.gpu_preset`).
+
+  ```bash
+  export MODAL_RENDER_GPU=L40
+  modal deploy modal_app.py
+  ```
+
+- **Resolution override** – incoming jobs provide `dimensions.width` and `dimensions.height`, but the Modal renderer forces a target width of 360 px (function `_override_dimensions` in `modal_app.py`). Height is rescaled to keep the aspect ratio and both dimensions are rounded to even numbers (codec requirement).
+
+  > To render in a different base width, adjust the `target_width` argument or disable the override logic in `_override_dimensions`.
+
 
 
 ## Local Development## Local Development

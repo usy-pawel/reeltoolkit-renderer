@@ -69,6 +69,17 @@ class BackgroundMusicSpec(BaseModel):
 class RenderOptions(BaseModel):
     use_parallel: bool = False
     quality: Literal["draft", "final"] = "final"
+    gpu_preset: str | None = None
+
+    @field_validator("gpu_preset")
+    @classmethod
+    def _normalize_gpu(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            return None
+        return normalized.upper()
 
 
 class RenderJobSpec(BaseModel):

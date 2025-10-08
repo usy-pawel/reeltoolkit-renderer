@@ -8,9 +8,10 @@ from typing import Union
 from .types import RenderJobSpec
 
 # Set ffmpeg paths BEFORE any moviepy imports to prevent network downloads
-os.environ.setdefault("IMAGEIO_FFMPEG_EXE", "/usr/bin/ffmpeg")
+# Use /usr/local/bin/ffmpeg - our compiled version with NVENC support
+os.environ.setdefault("IMAGEIO_FFMPEG_EXE", "/usr/local/bin/ffmpeg")
 os.environ.setdefault("MOVIEPY_USE_IMAGEIO_FFMPEG", "1")
-os.environ.setdefault("FFMPEG_BINARY", "/usr/bin/ffmpeg")
+os.environ.setdefault("FFMPEG_BINARY", "/usr/local/bin/ffmpeg")
 os.environ.setdefault("XDG_CACHE_HOME", "/tmp/.cache")
 
 
@@ -44,7 +45,7 @@ async def render_reel(
     output_path = Path(output_path)
     
     # 1) LAZY IMPORT moviepy - ONLY HERE, not at module level
-    from moviepy.editor import ColorClip, ImageClip, CompositeVideoClip
+    from moviepy.editor import ColorClip, ImageClip, CompositeVideoClip  # type: ignore[import]
     
     # 2) Extract bundle ZIP to assets directory
     assets_dir = output_path.parent / "assets"
@@ -52,10 +53,10 @@ async def render_reel(
     
     # 3) Black background 1 second (no audio)
     bg = ColorClip(
-        size=(spec.width, spec.height),
+        size=(spec.dimensions.width, spec.dimensions.height),
         color=(0, 0, 0),
         duration=1.0
-    ).set_fps(spec.fps)
+    ).set_fps(spec.dimensions.fps)
     
     # 4) Build layers: start with background
     layers = [bg]
@@ -73,7 +74,7 @@ async def render_reel(
     def _write():
         clip.write_videofile(
             str(output_path),
-            fps=spec.fps,
+            fps=spec.dimensions.fps,
             codec="libx264",
             preset="ultrafast",
             threads=1,

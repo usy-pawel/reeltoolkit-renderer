@@ -53,7 +53,7 @@ modal run modal_app.py::test_ffmpeg
 ---
 
 ### `render_reel(spec_dict, bundle_b64)`
-Full rendering function with MoviePy pipeline.
+Smart entry point that auto-selects the GPU tier per render.
 
 **Call from Python:**
 ```python
@@ -142,13 +142,69 @@ Change in `modal_app.py`:
 ```
 
 ### GPU Support
-Add GPU for faster rendering:
-```python
-@app.function(
-    image=image,
-    gpu="T4",  # or "A10G", "A100"
-)
+GPU tier is selected per request. The renderer reads the optional
+`render.gpu_preset` value inside the `spec` payload and dispatches the job to
+the matching Modal function. Supported presets: `T40`, `L40`, `L40S`. Values
+are case-insensitive.
+
+If no preset is requested in the payload, the deployment default is used. Set
+`MODAL_RENDER_GPU` before running `modal deploy` to change the default tier.
+
+```bash
+# Example: request an L40 GPU tier at deploy time
+export MODAL_RENDER_GPU=L40
+modal deploy modal_app.py
 ```
+
+Example request overriding the GPU tier for a single render:
+
+```json
+{
+  "spec": {
+    "job_id": "vip-render",
+    "output_name": "output.mp4",
+    "dimensions": {"width": 1080, "height": 1920, "fps": 30},
+    "render": {
+      "quality": "final",
+      "use_parallel": false,
+      "gpu_preset": "L40S"
+    },
+    "slides": []
+  },
+  "bundle_b64": "..."
+}
+```
+
+If you need a class that is not in the presets (for example `A100-80GB` or
+`H100`), set `MODAL_RENDER_GPU` to the exact Modal GPU string and it will be
+passed through as-is. Redeploy any time you change the value.
+
+> **Note:** Secrets are injected only when the function runs, so they cannot
+> change the GPU tier. Keep `MODAL_RENDER_GPU` in your shell (or `.env`) before
+> running `modal deploy`. You can still store the preferred GPU string in the
+> `reel-secrets` secret for auditing or runtime logging, but it will not affect
+> the compute profile.
+
+### Cost estimation
+
+Each Modal job now prints an estimated GPU cost and returns it to the backend.
+By default the code uses ballpark hourly prices for the supported GPU tiers, but
+you can override them through environment variables:
+
+```bash
+# Override the rate for every GPU
+export MODAL_GPU_RATE_USD_PER_HOUR=2.50
+
+# Override a specific GPU tier
+export MODAL_GPU_RATE_USD_PER_HOUR_L40=1.10
+
+# Provide a JSON mapping for multiple tiers at once
+export MODAL_GPU_RATE_OVERRIDES='{"T40": 0.59, "L40S": 1.95}'
+```
+
+Values are interpreted as USD per hour. The renderer logs which source was used
+(`default`, `MODAL_GPU_RATE_USD_PER_HOUR`, etc.). If no rate is available it
+will log a warning and skip the estimate.
 
 ---
 
