@@ -161,7 +161,7 @@ if ENTRYPOINT_TIMEOUT_SECONDS <= GPU_RENDER_TIMEOUT_SECONDS:
     ENTRYPOINT_TIMEOUT_SECONDS = adjusted_timeout
 
 print(
-    "⚙️ Modal GPU timeout configured: {gpu}s | entrypoint timeout: {entry}s".format(
+    "Modal GPU timeout configured: {gpu}s | entrypoint timeout: {entry}s".format(
         gpu=GPU_RENDER_TIMEOUT_SECONDS,
         entry=ENTRYPOINT_TIMEOUT_SECONDS,
     )
