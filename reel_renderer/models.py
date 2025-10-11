@@ -34,11 +34,18 @@ class Motion(BaseModel):
     transition: MotionTransition | None = None
 
 
+class TransformSpec(BaseModel):
+    scale: float | None = Field(default=None, gt=0.0, le=6.0)
+    offset_x: float | None = None
+    offset_y: float | None = None
+
+
 class SlideSpec(BaseModel):
     image: str
     audio: str
     motion: Motion | None = None
     subtitle: bool | None = True
+    transform: TransformSpec | None = None
 
 
 class SubtitleSpec(BaseModel):

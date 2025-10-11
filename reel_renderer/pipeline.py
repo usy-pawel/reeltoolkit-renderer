@@ -10,8 +10,13 @@ import zipfile
 from pathlib import Path
 from typing import Iterable, List, Optional
 
+import logging
+
 from . import audio, parallel, video
 from .models import RenderJobSpec
+
+
+logger = logging.getLogger(__name__)
 
 
 class RenderError(Exception):
@@ -75,8 +80,21 @@ async def render_reel(
         images = _ensure_files(assets_dir, [slide.image for slide in spec.slides])
         audio_files = _ensure_files(assets_dir, [slide.audio for slide in spec.slides])
         motions, transitions = _collect_motions(spec)
+        transforms = [
+            slide.transform.model_dump(exclude_none=True)
+            if slide.transform
+            else None
+            for slide in spec.slides
+        ]
 
         use_parallel = spec.render.use_parallel
+
+        if use_parallel and any(transform for transform in transforms):
+            logger.info(
+                "Disabling parallel renderer due to slide transforms",
+                extra={"job_id": spec.job_id},
+            )
+            use_parallel = False
 
         if use_parallel:
             if max_workers is not None:
@@ -96,6 +114,7 @@ async def render_reel(
                 bg_color=spec.background_color,
                 output_path=str(base_video),
                 motions=motions,
+                transforms=transforms,
                 max_workers=workers,
                 quality=spec.render.quality,
             )
@@ -111,6 +130,7 @@ async def render_reel(
                 bg_color=spec.background_color,
                 output_path=str(base_video),
                 motions=motions,
+                transforms=transforms,
             )
 
         if spec.subtitle:

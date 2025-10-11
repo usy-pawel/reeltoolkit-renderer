@@ -1,82 +1,47 @@
-# ReelToolkit Renderer# ReelToolkit Renderer
+# ReelToolkit Renderer
 
+[![CI](https://github.com/<your-org>/reeltoolkit-renderer/actions/workflows/ci.yml/badge.svg)](https://github.com/<your-org>/reeltoolkit-renderer/actions/workflows/ci.yml)
 
+Serverless video rendering service powered by FFmpeg and MoviePy. Deploy to Modal.com for fast, scalable video generation with ~2s cold starts.
 
-[![CI](https://github.com/<your-org>/reeltoolkit-renderer/actions/workflows/ci.yml/badge.svg)](https://github.com/<your-org>/reeltoolkit-renderer/actions/workflows/ci.yml)[![CI](https://github.com/<your-org>/reeltoolkit-renderer/actions/workflows/ci.yml/badge.svg)](https://github.com/<your-org>/reeltoolkit-renderer/actions/workflows/ci.yml)
+## Features
 
+- 🚀 **Serverless:** Deploy to Modal.com with instant scaling
+- ⚡ **Fast:** ~2s cold starts, no container warm-up
+- 🎬 **FFmpeg-based:** Pure FFmpeg rendering for reliability
+- 📦 **Zip bundles:** Upload assets as base64-encoded zips
+- 🌐 **Dual interface:** Python SDK or HTTP endpoint
+- 💰 **Cost-effective:** Pay per second, ~$0.002/minute
 
+## Quick start - Modal Deployment
 
-Serverless video rendering service powered by FFmpeg and MoviePy. Deploy to Modal.com for fast, scalable video generation with ~2s cold starts.Serverless video rendering service powered by FFmpeg and MoviePy. Deploy to Modal.com for fast, scalable video generation with ~2s cold starts.
+### 1. Install and authenticate
 
+```bash
+pip install modal
+modal token new  # Opens browser for authentication
+```
 
+### 2. Deploy
 
-## Features## Features
+```bash
+cd reeltoolkit-renderer
+modal deploy modal_app_simple.py
+```
 
+### 3. Test
 
+```bash
+# CLI test
+modal run modal_app_simple.py
 
-- 🚀 **Serverless:** Deploy to Modal.com with instant scaling- 🚀 **Serverless:** Deploy to Modal.com with instant scaling
+# Or call from Python
+import modal
 
-- ⚡ **Fast:** ~2s cold starts, no container warm-up- ⚡ **Fast:** ~2s cold starts, no container warm-up
-
-- 🎬 **FFmpeg-based:** Pure FFmpeg rendering for reliability- � **FFmpeg-based:** Pure FFmpeg rendering for reliability
-
-- 📦 **Zip bundles:** Upload assets as base64-encoded zips- 📦 **Zip bundles:** Upload assets as base64-encoded zips
-
-- 🌐 **Dual interface:** Python SDK or HTTP endpoint- 🌐 **Dual interface:** Python SDK or HTTP endpoint
-
-- 💰 **Cost-effective:** Pay per second, ~$0.002/minute- 💰 **Cost-effective:** Pay per second, ~$0.002/minute
-
-
-
-## Quick start - Modal Deployment## Quick start - Modal Deployment
-
-
-
-### 1. Install and authenticate### 1. Install and authenticate
-
-```bash```bash
-
-pip install modalpip install modal
-
-modal token new  # Opens browser for authenticationmodal token new  # Opens browser for authentication
-
-``````
-
-
-
-### 2. Deploy### 2. Deploy
-
-```bash```bash
-
-cd reeltoolkit-renderercd reeltoolkit-renderer
-
-modal deploy modal_app_simple.pymodal deploy modal_app_simple.py
-
-``````
-
-
-
-### 3. Test### 3. Test
-
-```bash```bash
-
-# CLI test# CLI test
-
-modal run modal_app_simple.pymodal run modal_app_simple.py
-
-
-
-# Or call from Python# Or call from Python
-
-import modalimport modal
-
-test_fn = modal.Function.lookup("reeltoolkit-renderer-simple", "test_ffmpeg")test_fn = modal.Function.lookup("reeltoolkit-renderer-simple", "test_ffmpeg")
-
-result = test_fn.remote()result = test_fn.remote()
-
-print(f"Video size: {result['size_bytes']} bytes")print(f"Video size: {result['size_bytes']} bytes")
-
-``````
+test_fn = modal.Function.lookup("reeltoolkit-renderer-simple", "test_ffmpeg")
+result = test_fn.remote()
+print(f"Video size: {result['size_bytes']} bytes")
+```
 
 
 

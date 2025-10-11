@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import math
 import os
 import subprocess
 from pathlib import Path
@@ -88,6 +89,45 @@ def _compute_zoom_scales(
         return start, end
 
     return base_scale, base_scale
+
+
+def _extract_transform(
+    transform: Optional[Dict[str, Any]]
+) -> Tuple[float, float, float]:
+    if not isinstance(transform, dict):
+        return 1.0, 0.0, 0.0
+
+    scale_raw = transform.get("scale")
+    scale_val = 1.0
+    if isinstance(scale_raw, (int, float)) and math.isfinite(scale_raw) and scale_raw > 0:
+        scale_val = float(scale_raw)
+    else:
+        try:
+            candidate = float(scale_raw)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            candidate = 1.0
+        if math.isfinite(candidate) and candidate > 0:
+            scale_val = candidate
+    scale_val = max(0.5, min(scale_val, 6.0))
+
+    def _resolve_offset(primary: str, secondary: str) -> float:
+        raw = transform.get(primary)
+        if raw is None:
+            raw = transform.get(secondary)
+        if isinstance(raw, (int, float)) and math.isfinite(raw):
+            return float(raw)
+        try:
+            value = float(raw)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            value = 0.0
+        if not math.isfinite(value):
+            return 0.0
+        return value
+
+    offset_x = _resolve_offset("offset_x", "offsetX")
+    offset_y = _resolve_offset("offset_y", "offsetY")
+
+    return scale_val, offset_x, offset_y
 
 
 def _parse_transition_spec(motion: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -302,6 +342,7 @@ async def assemble_video_with_audio(
     bg_color: str,
     output_path: str,
     motions: Optional[List[Optional[Dict[str, Any]]]] = None,
+    transforms: Optional[List[Optional[Dict[str, Any]]]] = None,
 ) -> None:
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
@@ -311,13 +352,22 @@ async def assemble_video_with_audio(
 
     audio_clips: List[AudioFileClip] = []
 
-    for img, audio, motion in zip(images, audio_files, motions):
+    for idx, (img, audio) in enumerate(zip(images, audio_files)):
+        motion = motions[idx] if idx < len(motions) else None
+        transform_dict = (
+            transforms[idx]
+            if transforms and idx < len(transforms)
+            else None
+        )
+        transform_scale, offset_x, offset_y = _extract_transform(transform_dict)
+
         aclip = AudioFileClip(audio)
         audio_clips.append(aclip)
 
         duration = aclip.duration
         ic = ImageClip(img)
-        scale = min(width / ic.w, height / ic.h)
+        base_scale = min(width / ic.w, height / ic.h)
+        scale = base_scale * transform_scale
         bg = ColorClip((width, height), color=_hex_to_rgb(bg_color)).set_duration(
             duration
         )
@@ -342,7 +392,16 @@ async def assemble_video_with_audio(
                 return start_s + (end_s - start_s) * p
 
             moving = ic.resize(lambda t: scaler(t)).set_duration(duration)
-            comp = CompositeVideoClip([bg, moving.set_position("center")])
+
+            def pos_func(t):  # pragma: no cover - MoviePy callback
+                scale_t = scaler(t)
+                w_t = ic.w * scale_t
+                h_t = ic.h * scale_t
+                cx = width / 2 + offset_x
+                cy = height / 2 + offset_y
+                return (cx - w_t / 2, cy - h_t / 2)
+
+            comp = CompositeVideoClip([bg, moving.set_position(pos_func)])
         elif mtype in (
             "pan-left",
             "pan-right",
@@ -354,7 +413,9 @@ async def assemble_video_with_audio(
 
             def pos_func(t):  # pragma: no cover - MoviePy callback
                 if duration <= 0:
-                    return (width / 2 - moving.w / 2, height / 2 - moving.h / 2)
+                    cx_default = width / 2 + offset_x
+                    cy_default = height / 2 + offset_y
+                    return (cx_default - moving.w / 2, cy_default - moving.h / 2)
                 p = max(0.0, min(1.0, t / duration))
                 dx0 = dy0 = 0
                 dx1 = dy1 = 0
@@ -368,14 +429,18 @@ async def assemble_video_with_audio(
                     dy0, dy1 = -shift, +shift
                 dx = dx0 + (dx1 - dx0) * p
                 dy = dy0 + (dy1 - dy0) * p
-                cx = width / 2 + dx
-                cy = height / 2 + dy
+                cx = width / 2 + offset_x + dx
+                cy = height / 2 + offset_y + dy
                 return (cx - moving.w / 2, cy - moving.h / 2)
 
             comp = CompositeVideoClip([bg, moving.set_position(lambda t: pos_func(t))])
         else:
             still = ic.resize(scale).set_duration(duration)
-            comp = CompositeVideoClip([bg, still.set_position("center")])
+            cx = width / 2 + offset_x
+            cy = height / 2 + offset_y
+            comp = CompositeVideoClip(
+                [bg, still.set_position((cx - still.w / 2, cy - still.h / 2))]
+            )
 
         vclip = comp.set_audio(aclip)
         clips.append(vclip)

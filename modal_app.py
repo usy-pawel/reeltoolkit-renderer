@@ -14,8 +14,11 @@ from pathlib import Path
 
 import modal  # type: ignore[import-not-found]
 
+APP_NAME = "reeltoolkit-renderer"
+BASE_DIR = Path(__file__).resolve().parent
+
 # Create Modal app
-app = modal.App("reeltoolkit-renderer")
+app = modal.App(APP_NAME)
 _render_secret = modal.Secret.from_name("reel-secrets")
 
 # Use NVIDIA CUDA base image with GPU support + build FFmpeg with NVENC from source
@@ -98,20 +101,71 @@ image = (
         "ln -sf /usr/local/bin/ffmpeg $IMAGEIO_FFMPEG_DIR/binaries/ffmpeg-linux64-v4.2.2; "
         "ln -sf /usr/local/bin/ffprobe $IMAGEIO_FFMPEG_DIR/binaries/ffprobe-linux64-v4.2.2'"
     )
-    .add_local_dir("reel_renderer", remote_path="/root/reel_renderer")
+    .add_local_dir(str(BASE_DIR / "reel_renderer"), remote_path="/root/reel_renderer")
+    .add_local_file(str(Path(__file__).resolve()), remote_path="/root/modal_app.py")
 )
 
 _GPU_PRESETS = {
-    "T40": "T40",
-    "L40": "L40",
+    "L4": "L4",
     "L40S": "L40S",
 }
 
 _DEFAULT_GPU_RATES = {
-    "T40": 0.59,  # approximate Modal hourly rate (was T4)
-    "L40": 0.80,  # approximate rate based on L4 tier
+    "L4": 0.35,
     "L40S": 1.95,
 }
+
+# Allow additional alias spellings to resolve to supported presets.
+_GPU_ALIAS_SYNONYMS = {
+    "L40": "L40S",
+    "L4S": "L40S",
+}
+
+
+def _resolve_timeout_seconds(env_key: str, default_value: int) -> int:
+    raw_value = os.getenv(env_key)
+    if raw_value is None:
+        return default_value
+    try:
+        parsed = int(raw_value)
+        if parsed <= 0:
+            raise ValueError
+        print(f"⚙️ Modal timeout override: {env_key}={parsed}s")
+        return parsed
+    except ValueError:
+        print(
+            f"⚠️ Invalid timeout override in {env_key}={raw_value!r}; using default {default_value}s"
+        )
+        return default_value
+
+
+GPU_RENDER_TIMEOUT_SECONDS = _resolve_timeout_seconds(
+    "MODAL_GPU_TIMEOUT_SECONDS",
+    1800,
+)
+
+ENTRYPOINT_TIMEOUT_SECONDS = _resolve_timeout_seconds(
+    "MODAL_RENDER_TIMEOUT_SECONDS",
+    GPU_RENDER_TIMEOUT_SECONDS + 120,
+)
+
+if ENTRYPOINT_TIMEOUT_SECONDS <= GPU_RENDER_TIMEOUT_SECONDS:
+    adjusted_timeout = GPU_RENDER_TIMEOUT_SECONDS + 60
+    print(
+        "ℹ️ Modal entrypoint timeout ({entry}s) is not larger than GPU timeout ({gpu}s); adjusting to {adjusted}s".format(
+            entry=ENTRYPOINT_TIMEOUT_SECONDS,
+            gpu=GPU_RENDER_TIMEOUT_SECONDS,
+            adjusted=adjusted_timeout,
+        )
+    )
+    ENTRYPOINT_TIMEOUT_SECONDS = adjusted_timeout
+
+print(
+    "⚙️ Modal GPU timeout configured: {gpu}s | entrypoint timeout: {entry}s".format(
+        gpu=GPU_RENDER_TIMEOUT_SECONDS,
+        entry=ENTRYPOINT_TIMEOUT_SECONDS,
+    )
+)
 
 
 def _resolve_gpu_config(raw_value: str | None) -> str:
@@ -125,7 +179,7 @@ def _resolve_gpu_config(raw_value: str | None) -> str:
                 return resolved
             print(f"⚙️ Modal GPU override '{stripped}' not in presets; using raw value.")
             return stripped
-    default_gpu = _GPU_PRESETS["T40"]
+    default_gpu = _GPU_PRESETS["L4"]
     print(f"⚙️ Modal GPU not specified; defaulting to '{default_gpu}'")
     return default_gpu
 
@@ -475,7 +529,12 @@ def _render_reel_impl(spec_dict: dict, bundle_b64: str, *, gpu_name: str) -> dic
             print(
                 f"🎯 Job requested GPU preset '{requested_gpu}'; executing on '{gpu_name}'"
             )
-        _override_dimensions(spec, target_width=360)
+        if (spec.render.quality or "final").lower() == "draft":
+            _override_dimensions(spec, target_width=360)
+        else:
+            print(
+                f"📐 Preserving requested resolution for quality '{spec.render.quality or 'final'}'"
+            )
         print(
             f"📐 Using render dimensions: {spec.dimensions.width}x{spec.dimensions.height}"
         )
@@ -554,6 +613,7 @@ def _render_reel_impl(spec_dict: dict, bundle_b64: str, *, gpu_name: str) -> dic
 
 _GPU_ALIAS_TO_RESOLVED: dict[str, str] = {alias.upper(): value for alias, value in _GPU_PRESETS.items()}
 _GPU_FUNCTIONS: dict[str, modal.Function] = {}
+_GPU_FUNCTION_NAMES: dict[str, str] = {}
 _GPU_KEY_TO_ALIAS: dict[str, str] = {}
 
 
@@ -580,7 +640,7 @@ def _register_render_function(alias: str, resolved_name: str) -> None:
         decorated = app.function(
             name=modal_name,
             image=image,
-            timeout=600,
+            timeout=GPU_RENDER_TIMEOUT_SECONDS,
             memory=8192,
             gpu=resolved_name,
             secrets=[_render_secret],
@@ -592,6 +652,8 @@ def _register_render_function(alias: str, resolved_name: str) -> None:
 
     _GPU_FUNCTIONS[normalized_alias] = decorated
     _GPU_FUNCTIONS[normalized_resolved] = decorated
+    _GPU_FUNCTION_NAMES[normalized_alias] = modal_name
+    _GPU_FUNCTION_NAMES[normalized_resolved] = modal_name
     _GPU_KEY_TO_ALIAS[normalized_alias] = normalized_alias
     _GPU_KEY_TO_ALIAS[normalized_resolved] = normalized_alias
     _GPU_ALIAS_TO_RESOLVED[normalized_alias] = resolved_name
@@ -612,7 +674,12 @@ GPU_RENDER_FUNCTIONS = dict(_GPU_FUNCTIONS)
 def _resolve_gpu_function(requested_gpu: str | None) -> tuple[str, modal.Function]:
     if requested_gpu:
         key = requested_gpu.strip().upper()
-        alias = _GPU_KEY_TO_ALIAS.get(key)
+        canonical_key = _GPU_ALIAS_SYNONYMS.get(key, key)
+        if canonical_key != key:
+            print(
+                f"ℹ️ GPU alias '{requested_gpu}' normalized to preset '{canonical_key}'"
+            )
+        alias = _GPU_KEY_TO_ALIAS.get(canonical_key)
         if alias and alias in _GPU_FUNCTIONS:
             return alias, _GPU_FUNCTIONS[alias]
         print(
@@ -625,16 +692,39 @@ def render_reel_for_request(spec_dict: dict, bundle_b64: str) -> dict[str, objec
     requested_gpu = _extract_requested_gpu(spec_dict)
     alias, function = _resolve_gpu_function(requested_gpu)
     resolved = _GPU_ALIAS_TO_RESOLVED.get(alias, GPU_CONFIG)
+    function_name = _GPU_FUNCTION_NAMES.get(alias)
     if requested_gpu:
         print(
             f"🚀 Dispatching render (requested '{requested_gpu}') to GPU '{alias}' ({resolved})"
         )
     else:
         print(f"🚀 Dispatching render to default GPU '{alias}' ({resolved})")
-    return function.remote(spec_dict, bundle_b64)
+    try:
+        return function.remote(spec_dict, bundle_b64)
+    except modal.exception.ExecutionError as exc:
+        if function_name and "has not been hydrated" in str(exc):
+            print(
+                f"♻️ GPU function '{function_name}' not hydrated in this container; looking up dynamically"
+            )
+            try:
+                lookup_fn = modal.Function.from_name(APP_NAME, function_name)
+            except modal.exception.NotFoundError:
+                print(
+                    f"⚠️ Function '{function_name}' not found in app '{APP_NAME}'; retrying with default GPU '{_DEFAULT_GPU_ALIAS}'"
+                )
+                if alias == _DEFAULT_GPU_ALIAS:
+                    raise
+                return render_reel_default.remote(spec_dict, bundle_b64)
+            return lookup_fn.remote(spec_dict, bundle_b64)
+        raise
 
 
-@app.function(image=image, timeout=120, memory=2048, secrets=[_render_secret])
+@app.function(
+    image=image,
+    timeout=ENTRYPOINT_TIMEOUT_SECONDS,
+    memory=2048,
+    secrets=[_render_secret],
+)
 def render_reel(spec_dict: dict, bundle_b64: str) -> dict[str, object]:
     """Entry point that routes to the appropriate GPU-backed render function."""
 

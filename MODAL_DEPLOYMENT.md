@@ -120,15 +120,17 @@ curl -X POST https://yourname--reeltoolkit-renderer-render-endpoint.modal.run \
 ## 🔧 Configuration
 
 ### Timeout
-Default: 600 seconds (10 minutes)
+Default GPU render timeout: **1800 seconds (30 minutes)**. The dispatcher function waits slightly longer to accommodate result delivery.
 
-Change in `modal_app.py`:
-```python
-@app.function(
-    image=image,
-    timeout=1200,  # 20 minutes
-)
+Override timeouts at deploy time with environment variables:
+
+```bash
+export MODAL_GPU_TIMEOUT_SECONDS=2400               # GPU worker timeout
+export MODAL_RENDER_TIMEOUT_SECONDS=2700            # Dispatcher timeout (optional)
+modal deploy modal_app.py
 ```
+
+If the dispatcher timeout is omitted or set lower than the GPU timeout, it is automatically bumped to keep the session alive until the GPU job returns.
 
 ### Memory
 Default: 2GB (test), 4GB (render)
@@ -144,15 +146,16 @@ Change in `modal_app.py`:
 ### GPU Support
 GPU tier is selected per request. The renderer reads the optional
 `render.gpu_preset` value inside the `spec` payload and dispatches the job to
-the matching Modal function. Supported presets: `T40`, `L40`, `L40S`. Values
-are case-insensitive.
+the matching Modal function. Supported presets: `L4`, `L40S`. Values are
+case-insensitive, and aliases such as `L40` or `L4S` automatically normalize to
+`L40S`.
 
 If no preset is requested in the payload, the deployment default is used. Set
 `MODAL_RENDER_GPU` before running `modal deploy` to change the default tier.
 
 ```bash
-# Example: request an L40 GPU tier at deploy time
-export MODAL_RENDER_GPU=L40
+# Example: request an L40S GPU tier at deploy time
+export MODAL_RENDER_GPU=L40S
 modal deploy modal_app.py
 ```
 
@@ -167,7 +170,7 @@ Example request overriding the GPU tier for a single render:
     "render": {
       "quality": "final",
       "use_parallel": false,
-      "gpu_preset": "L40S"
+  "gpu_preset": "L40S"
     },
     "slides": []
   },

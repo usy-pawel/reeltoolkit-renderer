@@ -39,6 +39,7 @@ class SlideConfig:
     audio_path: str
     duration: float
     motion: Optional[Dict[str, Any]] = None
+    transform: Optional[Dict[str, Any]] = None
     index: int = 0
 
 
@@ -257,6 +258,12 @@ async def _render_slide_ffmpeg(
                 extra={"slide_index": slide.index, "audio_path": slide.audio_path},
             )
             return False
+
+        if slide.transform:
+            logger.info(
+                "Ignoring slide transform in parallel renderer",
+                extra={"slide_index": slide.index},
+            )
 
         render_width, render_height = _get_quality_resolution(
             config.width, config.height, config.quality
@@ -547,6 +554,7 @@ async def render_video_parallel(
     output_path: str,
     config: RenderConfig,
     motions: Optional[List[Optional[Dict[str, Any]]]] = None,
+    transforms: Optional[List[Optional[Dict[str, Any]]]] = None,
     max_workers: int = 16,
 ) -> bool:
     work_dir = tempfile.mkdtemp(prefix="render_")
@@ -561,12 +569,18 @@ async def render_video_parallel(
         transition_specs: List[Optional[Dict[str, Any]]] = []
         for idx, (img, audio, duration) in enumerate(zip(images, audio_files, durations)):
             motion = motions[idx] if motions and idx < len(motions) else None
+            transform = (
+                transforms[idx]
+                if transforms and idx < len(transforms)
+                else None
+            )
             slides.append(
                 SlideConfig(
                     image_path=img,
                     audio_path=audio,
                     duration=duration,
                     motion=motion,
+                    transform=transform,
                     index=idx,
                 )
             )
@@ -630,6 +644,7 @@ async def assemble_video_with_audio_parallel(
     bg_color: str,
     output_path: str,
     motions: Optional[List[Optional[Dict[str, Any]]]] = None,
+    transforms: Optional[List[Optional[Dict[str, Any]]]] = None,
     *,
     test_mode: bool = False,
     max_workers: int = 16,
@@ -650,5 +665,6 @@ async def assemble_video_with_audio_parallel(
         output_path=output_path,
         config=config,
         motions=motions,
+        transforms=transforms,
         max_workers=max_workers,
     )
