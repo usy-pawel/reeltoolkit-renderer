@@ -175,17 +175,17 @@ def _resolve_gpu_config(raw_value: str | None) -> str:
             alias = stripped.upper()
             if alias in _GPU_PRESETS:
                 resolved = _GPU_PRESETS[alias]
-                print(f"⚙️ Modal GPU preset '{alias}' resolved to '{resolved}'")
+                print(f"Modal GPU preset '{alias}' resolved to '{resolved}'")
                 return resolved
-            print(f"⚙️ Modal GPU override '{stripped}' not in presets; using raw value.")
+            print(f"Modal GPU override '{stripped}' not in presets; using raw value.")
             return stripped
     default_gpu = _GPU_PRESETS["L4"]
-    print(f"⚙️ Modal GPU not specified; defaulting to '{default_gpu}'")
+    print(f"Modal GPU not specified; defaulting to '{default_gpu}'")
     return default_gpu
 
 
 GPU_CONFIG = _resolve_gpu_config(os.environ.get("MODAL_RENDER_GPU"))
-print(f"⚙️ Modal GPU configured at deploy time: {GPU_CONFIG}")
+print(f"Modal GPU configured at deploy time: {GPU_CONFIG}")
 
 
 def _log_gpu_info(context: str) -> None:
@@ -201,13 +201,13 @@ def _log_gpu_info(context: str) -> None:
             timeout=5,
         )
         if result.returncode == 0:
-            print(f"🎮 GPU detected during {context}: {result.stdout.strip()}")
+            print(f"GPU detected during {context}: {result.stdout.strip()}")
         else:
-            print(f"⚠️ nvidia-smi failed during {context}: {result.stderr.strip()}")
+            print(f"nvidia-smi failed during {context}: {result.stderr.strip()}")
     except FileNotFoundError:
-        print(f"⚠️ nvidia-smi not available during {context}")
+        print(f"nvidia-smi not available during {context}")
     except Exception as exc:  # pragma: no cover - telemetry only
-        print(f"⚠️ Could not query GPU during {context}: {exc}")
+        print(f"Could not query GPU during {context}: {exc}")
 
 
 def _resolve_gpu_rate(gpu_name: str) -> tuple[float | None, str]:
@@ -217,7 +217,7 @@ def _resolve_gpu_rate(gpu_name: str) -> tuple[float | None, str]:
         try:
             return float(raw_specific), env_key_specific
         except ValueError:
-            print(f"⚠️ Invalid float in {env_key_specific}={raw_specific!r}; ignoring")
+            print(f"Invalid float in {env_key_specific}={raw_specific!r}; ignoring")
 
     overrides = os.getenv("MODAL_GPU_RATE_OVERRIDES")
     if overrides:
@@ -226,7 +226,7 @@ def _resolve_gpu_rate(gpu_name: str) -> tuple[float | None, str]:
             if isinstance(data, dict) and gpu_name in data:
                 return float(data[gpu_name]), "MODAL_GPU_RATE_OVERRIDES"
         except Exception as exc:  # pragma: no cover
-            print(f"⚠️ Failed to parse MODAL_GPU_RATE_OVERRIDES: {exc}")
+            print(f"Failed to parse MODAL_GPU_RATE_OVERRIDES: {exc}")
 
     raw_global = os.getenv("MODAL_GPU_RATE_USD_PER_HOUR")
     if raw_global:
@@ -234,7 +234,7 @@ def _resolve_gpu_rate(gpu_name: str) -> tuple[float | None, str]:
             return float(raw_global), "MODAL_GPU_RATE_USD_PER_HOUR"
         except ValueError:
             print(
-                f"⚠️ Invalid float in MODAL_GPU_RATE_USD_PER_HOUR={raw_global!r}; ignoring"
+                f"Invalid float in MODAL_GPU_RATE_USD_PER_HOUR={raw_global!r}; ignoring"
             )
 
     if gpu_name in _DEFAULT_GPU_RATES:
@@ -263,13 +263,13 @@ def _estimate_render_cost(
         summary["render_dimensions"] = f"{int(width)}x{int(height)}"
     if rate is None:
         print(
-            f"⚠️ No GPU rate configured for {gpu_name}; cost estimate unavailable (source={source})"
+            f"No GPU rate configured for {gpu_name}; cost estimate unavailable (source={source})"
         )
         return summary
     cost = rate * (duration_seconds / 3600.0)
     summary["cost_usd"] = cost
     print(
-        "💵 Estimated GPU cost: ${cost:.4f} (gpu={gpu}, duration={dur:.1f}s, rate=${rate:.4f}/hr via {source})".format(
+        "Estimated GPU cost: ${cost:.4f} (gpu={gpu}, duration={dur:.1f}s, rate=${rate:.4f}/hr via {source})".format(
             cost=cost,
             gpu=gpu_name,
             dur=duration_seconds,
@@ -647,7 +647,7 @@ def _register_render_function(alias: str, resolved_name: str) -> None:
             serialized=True,
         )(render_impl)
     except Exception as exc:
-        print(f"⚠️ Skipping GPU preset '{alias}' ({resolved_name}): {exc}")
+        print(f"Skipping GPU preset '{alias}' ({resolved_name}): {exc}")
         return
 
     _GPU_FUNCTIONS[normalized_alias] = decorated
@@ -677,13 +677,13 @@ def _resolve_gpu_function(requested_gpu: str | None) -> tuple[str, modal.Functio
         canonical_key = _GPU_ALIAS_SYNONYMS.get(key, key)
         if canonical_key != key:
             print(
-                f"ℹ️ GPU alias '{requested_gpu}' normalized to preset '{canonical_key}'"
+                f"GPU alias '{requested_gpu}' normalized to preset '{canonical_key}'"
             )
         alias = _GPU_KEY_TO_ALIAS.get(canonical_key)
         if alias and alias in _GPU_FUNCTIONS:
             return alias, _GPU_FUNCTIONS[alias]
         print(
-            f"⚠️ Requested GPU '{requested_gpu}' not available; falling back to '{_DEFAULT_GPU_ALIAS}'"
+            f"Requested GPU '{requested_gpu}' not available; falling back to '{_DEFAULT_GPU_ALIAS}'"
         )
     return _DEFAULT_GPU_ALIAS, _GPU_FUNCTIONS[_DEFAULT_GPU_ALIAS]
 
@@ -695,22 +695,22 @@ def render_reel_for_request(spec_dict: dict, bundle_b64: str) -> dict[str, objec
     function_name = _GPU_FUNCTION_NAMES.get(alias)
     if requested_gpu:
         print(
-            f"🚀 Dispatching render (requested '{requested_gpu}') to GPU '{alias}' ({resolved})"
+            f"Dispatching render (requested '{requested_gpu}') to GPU '{alias}' ({resolved})"
         )
     else:
-        print(f"🚀 Dispatching render to default GPU '{alias}' ({resolved})")
+        print(f"Dispatching render to default GPU '{alias}' ({resolved})")
     try:
         return function.remote(spec_dict, bundle_b64)
     except modal.exception.ExecutionError as exc:
         if function_name and "has not been hydrated" in str(exc):
             print(
-                f"♻️ GPU function '{function_name}' not hydrated in this container; looking up dynamically"
+                f"GPU function '{function_name}' not hydrated in this container; looking up dynamically"
             )
             try:
                 lookup_fn = modal.Function.from_name(APP_NAME, function_name)
             except modal.exception.NotFoundError:
                 print(
-                    f"⚠️ Function '{function_name}' not found in app '{APP_NAME}'; retrying with default GPU '{_DEFAULT_GPU_ALIAS}'"
+                    f"Function '{function_name}' not found in app '{APP_NAME}'; retrying with default GPU '{_DEFAULT_GPU_ALIAS}'"
                 )
                 if alias == _DEFAULT_GPU_ALIAS:
                     raise
